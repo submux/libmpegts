@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<VisualStudioProject
+	ProjectType="Intel C++ Project"
+	Version="12.0"
+	Name="libmpegts"
+	ProjectGUID="{76E40889-9A51-4FE8-B9FD-2979A6F69FED}"
+	VCNestedProjectGUID="{6354D367-12A5-4E4A-AA02-7D3D5ED9AD69}"
+	VCNestedProjectFileName="libmpegts.vcproj"
+	>
+	<Configurations>
+		<Configuration
+			Name="Debug|Win32"
+			>
+			<Tool
+				Name="CppCmplrTool"
+				C99Support="true"
+			/>
+		</Configuration>
+	</Configurations>
+	<Files/>
+</VisualStudioProject>
