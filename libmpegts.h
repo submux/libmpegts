@@ -37,12 +37,12 @@
 /**** Stream Formats ****/
 /* Generic */
 #define LIBMPEGTS_VIDEO_MPEG2 1
-#define LIBMPEGTS_VIDEO_AVC  2
+#define LIBMPEGTS_VIDEO_AVC   2
 
 #define LIBMPEGTS_AUDIO_MPEG1 32
 #define LIBMPEGTS_AUDIO_MPEG2 33
-#define LIBMPEGTS_AUDIO_ADTS  34 /* Effectively MPEG-2 AAC */
-#define LIBMPEGTS_AUDIO_LATM  35 /* Effectively MPEG-4 AAC */
+#define LIBMPEGTS_AUDIO_ADTS  34 /* Usually MPEG-2 AAC */
+#define LIBMPEGTS_AUDIO_LATM  35 /* Usually MPEG-4 AAC */
 #define LIBMPEGTS_AUDIO_AC3   36
 #define LIBMPEGTS_AUDIO_EAC3  37
 #define LIBMPEGTS_AUDIO_LPCM  38 /* Blu-Ray only */
@@ -64,14 +64,14 @@
 #define LIBMPEGTS_ANCILLARY_2038  98
 
 /* DVB Stream Formats */
-#define LIBMPEGTS_SUB_DVB      128
+#define LIBMPEGTS_DVB_SUB      128
 #define LIBMPEGTS_DVB_TELETEXT 129
 
 /* Misc */
 
 
 /**** Stream IDs ****/
-/* SMPTE 302M, AC3 and DVB subtitles use Private Stream 1 */
+/* SMPTE 302M, AC3, DVB subtitles and Teletext use Private Stream 1 */
 #define LIBMPEGTS_STREAM_ID_PRIVATE_1  0xbd
 #define LIBMPEGTS_STREAM_ID_PRIVATE_2  0xbf
 
@@ -133,11 +133,11 @@
  *           Blu-Ray HDMV (192 bytes) */
 enum ts_type_t
 {
-    TS_TYPE_DVB,
-    TS_TYPE_ATSC,
-    TS_TYPE_CABLELABS,
-    TS_TYPE_ISDB,
     TS_TYPE_GENERIC,
+    TS_TYPE_DVB,
+    TS_TYPE_CABLELABS,
+    TS_TYPE_ATSC,
+    TS_TYPE_ISDB,
     TS_TYPE_BLU_RAY,
 };
 
@@ -185,9 +185,7 @@ typedef struct ts_writer_t ts_writer_t;
  * stream_format - Use stream formats above
  * stream_id - See Table 2-22 in ISO 13818-1
  *
- * max_frame_size - Size of largest frame in 90kHz ticks.
- * For video streams this is the size of the buffer in seconds (i.e vbv_bufsize * 90000/vbv_maxrate)
- * For audio streams this is the size of one frame in seconds. (e.g. for ac3 1536 * 90000/samplerate )
+ * audio_frame_size - size of one audio frame in 90KHz ticks. (e.g. for ac3 1536 * 90000/samplerate )
  *
  * write_lang_code - Write ISO 639 descriptor for audio
  * lang_code - ISO 639 Part 2 Language code (or non-standard codes)
@@ -208,7 +206,8 @@ typedef struct
     int pid;
     int stream_format;
     int stream_id;
-    int max_frame_size;
+
+    int audio_frame_size;
 
     int write_lang_code;
     char lang_code[4];
@@ -250,17 +249,16 @@ typedef struct
  *
  * PIDs must be between 33 and 8190 (DVB)
  * program_num must be between 1 and 8190
- * PCR PID can be the same as a stream in the program (usually video PID)
+ * PCR PID can be the same as a stream in the program (video PID or separate PID recommended)
  *
- * cablelabs_is_3d -
+ * is_3dtv -
  * Write 3d_MPEG2_descriptor in PMT (CableLabs OC-SP-CEP3.0-I01-100827).
  * Stream MUST have appropriate MPEG-2 user_data or AVC SEI with 3D information.
  *
  * Smoothing Buffer (Required for ATSC) -
  * sb_leak_rate - smoothing buffer leak rate (in units of 400 bits/s)
  * sb_size - in bytes
- *
- * */
+ */
 typedef struct
 {
     int pmt_pid;
@@ -270,7 +268,7 @@ typedef struct
     int num_streams;
     ts_stream_t *streams;
 
-    int cablelabs_is_3d;
+    int is_3dtv;
 
     int sb_leak_rate;
     int sb_size;
@@ -287,9 +285,9 @@ ts_writer_t *ts_create_writer( void );
  * cbr - Pad to constant bitrate with null packets
  * ts_type - Type of transport stream to write
  * network_pid - PID of the network table (0 otherwise)
- * legacy_constraints - Comply with CableLabs legacy contraints in Section 7.3 of Content Encoding Profiles 3.0 Specification 
+ * legacy_constraints - Comply with CableLabs legacy contraints in Section 7.3 of Content Encoding Profiles 3.0 Specification
  *
- * retransmit period in (ms)
+ * retransmit periods in milliseconds
  *
  * CURRENT LIMITATIONS
  *
@@ -315,7 +313,6 @@ typedef struct ts_main_t
 
     int pcr_period;
     int pat_period;
-    int pmt_period;
 
     // FIXME dvb land
     int network_id;
@@ -326,7 +323,7 @@ typedef struct ts_main_t
 
 int ts_setup_transport_stream( ts_writer_t *w, ts_main_t *params );
 
-/***** Additional Codec-Specific functions *****/
+/**** Additional Codec-Specific functions ****/
 /* Many formats require extra information. Setup the relevant information using the following functions */
 
 /* Video */
@@ -354,19 +351,22 @@ int ts_setup_transport_stream( ts_writer_t *w, ts_main_t *params );
 int ts_setup_mpegvideo_stream( ts_writer_t *w, int pid, int level, int profile, int vbv_maxrate, int vbv_bufsize, int frame_rate );
 
 /* Audio */
-#if 0
 #define LIBMPEGTS_MPEG2_AAC_MAIN_PROFILE 0
-#define LIBMPEGTS_MPEG2_AAC_MAIN_PROFILE 1
+#define LIBMPEGTS_MPEG2_AAC_LC_PROFILE   1
 
-// TODO
+#define LIBMPEGTS_MPEG2_AAC_1_CHANNEL    1
+#define LIBMPEGTS_MPEG2_AAC_2_CHANNEL    2
+#define LIBMPEGTS_MPEG2_AAC_3_CHANNEL    3
+#define LIBMPEGTS_MPEG2_AAC_4_CHANNEL    4
+#define LIBMPEGTS_MPEG2_AAC_5_CHANNEL    5
+#define LIBMPEGTS_MPEG2_AAC_5_POINT_1_CHANNEL 6
+#define LIBMPEGTS_MPEG2_AAC_7_POINT_1_CHANNEL 7
 
 /* Setup / Update MPEG-2 AAC Stream
  *
  */
 
-int ts_setup_mpeg2_aac_stream( ts_writer_t *w  );
-
-#endif
+int ts_setup_mpeg2_aac_stream( ts_writer_t *w, int pid, int profile, int channel_map );
 
 #define LIBMPEGTS_MPEG4_AAC_MAIN_PROFILE_LEVEL_1 0x10
 #define LIBMPEGTS_MPEG4_AAC_MAIN_PROFILE_LEVEL_2 0x11
@@ -383,7 +383,10 @@ int ts_setup_mpeg2_aac_stream( ts_writer_t *w  );
 
 /* Setup / Update MPEG-4 AAC Stream
  * profile_and_level - self explanatory
- * num_channels - number of channels (excluding LFE channel) */
+ * num_channels - number of channels (excluding LFE channel)
+ *
+ * It is the responsibility of the calling application to encapsulate using ADTS or LATM
+ */
 
 int ts_setup_mpeg4_aac_stream( ts_writer_t *w, int pid, int profile_and_level, int num_channels );
 
@@ -399,58 +402,67 @@ int ts_setup_mpeg4_aac_stream( ts_writer_t *w, int pid, int profile_and_level, i
 
 int ts_setup_302m_stream( ts_writer_t *w, int pid, int bit_depth, int num_channels );
 
-/* Writing frames to libmpegts
- *
- * The duration of a video frame and associated audio frames must be as close as possible.
- * The duration of audio frames can either be slighly less, equal to (rare), or slightly greater than
- * the video frame duration - libmpegts can handle all three conditions. 
- * There should be no more than one frame with a DTS larger than that of the associated video stream.
- *
- * The DTS of a given PID must be monotonically increasing. Interleaving of frames from different streams is allowed.
- * Only a single video frame at a time must be written. */
+/**** DVB Specific Information ****/
 
-/* ts_frame_t
+/* DVB Subtitles */
+#define LIBMPEGTS_DVB_SUB_TYPE_EBU_TELETEXT            0x01
+#define LIBMPEGTS_DVB_SUB_TYPE_ASSOCIATED_EBU_TELETEXT 0x02
+#define LIBMPEGTS_DVB_SUB_TYPE_VBI_DATA                0x03
+#define LIBMPEGTS_DVB_SUB_TYPE_NORMAL_NO_AR            0x10
+#define LIBMPEGTS_DVB_SUB_TYPE_NORMAL_4_3_AR           0x11
+#define LIBMPEGTS_DVB_SUB_TYPE_NORMAL_2_21_1_AR        0x13
+#define LIBMPEGTS_DVB_SUB_TYPE_NORMAL_HD               0x14
+#define LIBMPEGTS_DVB_SUB_TYPE_HEARING_NO_AR           0x20
+#define LIBMPEGTS_DVB_SUB_TYPE_HEARING_4_3_AR          0x21
+#define LIBMPEGTS_DVB_SUB_TYPE_HEARING_16_9_AR         0x22
+#define LIBMPEGTS_DVB_SUB_TYPE_HEARING_HD              0x24
+
+/* ts_dvb_sub_t
  *
- * PID - Packet Identifier (i.e. which stream the payload is associated with)
- * DTS - Decode Time Stamp (in 90kHz clock ticks - maximum 30 bits)
- * PTS - Presentation Time Stamp (in 90kHz clock ticks - maximum 30 bits)
- * (PTS and DTS may have codec-specific meanings. See ISO 13818-1 for more information.
- * This data does not need to be wrapped around )
- * random_access - Data contains an "elementary stream access point"
- * priority - Indicate payload has priority
- * (random_access and priority can be codec specific. See ISO 13818-1 for more information.)
- *
- * DVB AU_information fields
- * frame_type - Single Value for MPEG-2, Bitfield for AVC (see above #defines)
- * ref_pic_idc - Set if frame is needed for reconstruction of other frames (MPEG-2), nal_ref_idc in AVC
- * write_pulldown_info - Write pulldown info in AU_Information
- * pic_struct - AVC pic_struct element - only used if write_pulldown_info set */
+ * lang_code - ISO 639 Part 2 Language code
+ * subtitling_type - see above #defines
+ * composition_page_id - composition page
+ * ancillary_page_id - optional ancillary page (should be set to composition page otherwise)
+ */
 
 typedef struct
 {
-    uint8_t *data;
-    int size;
-    int pid;
-    int64_t dts;
-    int64_t pts;
-    int random_access;
-    int priority;
+    char lang_code[4];
+    int  subtitling_type;
+    int  composition_page_id;
+    int  ancillary_page_id;
+} ts_dvb_sub_t;
 
-    /* DVB AU_Information specific fields */
-    uint8_t frame_type;
-    int ref_pic_idc;
-    int write_pulldown_info;
-    int pic_struct;
-} ts_frame_t;
-
-/* ts_write_frames
+/* ts_setup_dvb_subtitles
  *
- *
+ * has_dds - has display definition segment
  */
 
-int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len );
+int ts_setup_dvb_subtitles( ts_writer_t *w, int pid, int has_dds, int num_subtitles, ts_dvb_sub_t *subtitles );
 
-/**** DVB Specific Information ****/
+/* DVB Teletext */
+#define LIBMPEGTS_DVB_TTX_TYPE_INITIAL 0x01
+#define LIBMPEGTS_DVB_TTX_TYPE_SUB     0x02
+#define LIBMPEGTS_DVB_TTX_TYPE_ADDITIONAL_INFO 0x03
+#define LIBMPEGTS_DVB_TTX_TYPE_SCHEDULE        0x04
+#define LIBMPEGTS_DVB_TTX_TYPE_SUB_HEARING_IMP 0x05
+
+/* ts_dvb_ttx_t
+ * lang_code - ISO 639 Part 2 Language code
+ * teletext_type - see above #defines
+ * teletext_magazine_number - self explanatory
+ * teletext_page_number - self explanatory
+ */
+
+typedef struct
+{
+    char lang_code[4];
+    int  teletext_type;
+    int  teletext_magazine_number;
+    int  teletext_page_number;
+} ts_dvb_ttx_t;
+
+int ts_setup_dvb_teletext( ts_writer_t *w, int pid, int num_teletexts, ts_dvb_ttx_t *teletexts );
 
 /* SDT
  *  */
@@ -505,15 +517,17 @@ int ts_setup_sit( ts_writer_t *w );
 void ts_update_sit( ts_writer_t *w );
 int ts_remove_sit( ts_writer_t *w );
 
-/**** ATSC specific information ****/
+/**** ATSC/CableLabs specific information ****/
 
 /* ATSC Setup/Update AC3 stream
  *
- * Note: ...
- *
+ * Note: This channel status refers to channel map the current program being broadcast.
+ *       If the channel changes from 5.1 to 2.0 for an advertising break, this
+ *       need not be updated. On changing to a program with a different channel map,
+ *       this descriptor should be updated.
  */
 
-int ts_setup_atsc_ac3_stream( ts_writer_t *w );
+//int ts_setup_atsc_ac3_stream( ts_writer_t *w, int pid, ts_atsc_ac3_info *ac3_info );
 
 /**** Cablelabs specific information ****/
 
@@ -526,7 +540,8 @@ int ts_setup_atsc_ac3_stream( ts_writer_t *w );
  * sample_rate  - sample rate in KHz
  * bits_per_sample - number of bits per sample
  *
- * NOTE: It is the responsibility of the calling application to write the appropriate LPCM headers */
+ * NOTE: It is the responsibility of the calling application to write the appropriate LPCM headers
+ */
 int ts_setup_hdmv_lpcm_stream( ts_writer_t *w, int pid, int num_channels, int sample_rate, int bits_per_sample );
 
 /* Digital Transmission Content Protection
@@ -538,11 +553,71 @@ int ts_setup_dtcp( ts_writer_t *w, uint8_t byte_1, uint8_t byte_2 );
 
 /* TODO: other relevant tables */
 
+/* Writing frames to libmpegts
+ *
+ * The duration of a video frame and associated audio frames must be as close as possible.
+ * The duration of audio frames can either be slighly less, equal to (rare), or slightly greater than
+ * the video frame duration - libmpegts can handle all three conditions.
+ * There should be no more than one frame with a DTS larger than that of the associated video stream.
+ *
+ * The DTS of a given PID must be monotonically increasing. Interleaving of frames from different streams is allowed.
+ * Only a single video frame at a time must be written. */
 
-/* 
+/* ts_frame_t
+ *
+ * PID - Packet Identifier (i.e. which stream the payload is associated with)
+ *
+ * DTS - Decode Time Stamp (in 90kHz clock ticks - maximum 30 bits)
+ * PTS - Presentation Time Stamp (in 90kHz clock ticks - maximum 30 bits)
+ * (PTS and DTS may have codec-specific meanings. See ISO 13818-1 for more information)
+ * Generally, non-video formats have PTS equal to DTS.
+ *
+ * This data does not need to be wrapped around )
+ * random_access - Data contains an "elementary stream access point"
+ * priority - Indicate payload has priority
+ * (random_access and priority can be codec specific. See ISO 13818-1 for more information.)
+ *
+ * DVB AU_information fields
+ * frame_type - Single Value for MPEG-2, Bitfield for AVC (see above #defines)
+ * ref_pic_idc - Set if frame is needed for reconstruction of other frames (MPEG-2), nal_ref_idc in AVC
+ * write_pulldown_info - Write pulldown info in AU_Information
+ * pic_struct - AVC pic_struct element - only used if write_pulldown_info set
+ *
+ * opaque - opaque pointer that libmpegts does nothing with
+ */
+
+typedef struct
+{
+    uint8_t *data;
+    int size;
+    int pid;
+    int64_t dts;
+    int64_t pts;
+    int random_access;
+    int priority;
+
+    /* DVB AU_Information specific fields */
+    uint8_t frame_type;
+    int ref_pic_idc;
+    int write_pulldown_info;
+    int pic_struct;
+
+    void *opaque;
+} ts_frame_t;
+
+/* ts_write_frames
+ *
+ *
+ */
+
+int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len );
+
+/* INACTIVE
  *
  * */
 int ts_delete_stream( ts_writer_t *w, int pid );
+
+
 
 int ts_close_writer( ts_writer_t *w );
 

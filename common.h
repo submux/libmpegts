@@ -47,7 +47,7 @@
 #define TS_HEADER_SIZE 4
 #define TS_PACKET_SIZE 188
 #define TS_CLOCK       27000000LL
-#define TS_START       0
+#define TS_START       10
 
 // arbitrary
 #define MAX_PROGRAMS   100
@@ -83,6 +83,7 @@
 #define PRIVATE_DATA_DESCRIPTOR_TAG          0xe
 #define SMOOTHING_BUFFER_DESCRIPTOR_TAG      0x10
 #define AVC_DESCRIPTOR_TAG                   0x28
+#define MPEG2_AAC_AUDIO_DESCRIPTOR           0x2b
 #define SVC_EXTENSION_DESCRIPTOR_TAG         0x30
 #define MVC_EXTENSION_DESCRIPTOR_TAG         0x31
 #define USER_DEFINED_DESCRIPTOR_TAG          0xc4
@@ -113,19 +114,19 @@ typedef struct
 
 typedef struct
 {
-    int sample_rate_code;
-    int bsid;
-    int bit_rate_mode;
-    int surround_mode;
-    int bsmod;
-    int num_channels;
-} atsc_ac3_ctx_t;
-
-typedef struct
-{
     int frame_rate;
     int aspect_ratio;
 } hdmv_video_stream_ctx_t;
+
+typedef struct
+{
+    int sample_rate_code;
+    int bsid;
+    int bit_rate_code;
+    int surround_mode;
+    int bsmod;
+    int num_channels;
+} ts_atsc_ac3_info;
 
 /* Blu-Ray DTCP */
 typedef struct
@@ -148,6 +149,8 @@ typedef struct
     int cur_buf;  /* current buffer fill */
 
     double last_byte_removal_time;
+
+    buffer_queue_t queued_packets[10];
 } buffer_t;
 
 typedef struct
@@ -163,7 +166,13 @@ typedef struct
     /* Stream contexts */
     mpegvideo_stream_ctx_t  *mpegvideo_ctx;
     lpcm_stream_ctx_t       *lpcm_ctx;
-    atsc_ac3_ctx_t          *atsc_ac3_ctx;
+    ts_atsc_ac3_info        *atsc_ac3_ctx;
+
+    int                     num_dvb_sub;
+    ts_dvb_sub_t            *dvb_sub_ctx;
+
+    int                     num_dvb_ttx;
+    ts_dvb_ttx_t            *dvb_ttx_ctx;
 
     int num_channels;
     int max_frame_size;
@@ -180,7 +189,10 @@ typedef struct
     char lang_code[4];
     int audio_type;
 
+    /* AAC */
+    int aac_is_mpeg4;
     int aac_profile;
+    int aac_channel_map;
 
     /* ATSC */
 
@@ -201,7 +213,6 @@ typedef struct
     int hdmv_video_format;
     int hdmv_frame_rate;
     int hdmv_aspect_ratio;
-
 } ts_int_stream_t;
 
 typedef struct
@@ -234,17 +245,21 @@ typedef struct
     ts_int_stream_t pmt;
     int program_num;
 
+    int num_queued_pmt;
+    uint8_t **pmt_packets;
+
     int num_streams;
     ts_int_stream_t *streams[MAX_STREAMS];
     ts_int_stream_t *pcr_stream;
 
-    double cur_pcr;
+    int pmt_version;
+
     uint64_t last_pcr;
 
     int64_t video_dts;
 
     //sdt_program_ctx_t *sdt_ctx;
-    int cablelabs_is_3d;
+    int is_3dtv;
 
     int sb_leak_rate;
     int sb_size;
@@ -260,6 +275,7 @@ struct ts_writer_t
     } out;
 
     uint64_t bytes_written;
+    uint64_t packets_written;
 
     int ts_type;
     int ts_id;
@@ -275,6 +291,8 @@ struct ts_writer_t
     int pat_period;
     int pcr_period;
     int first_input;
+
+    int pat_version;
 
     int network_pid;
     int network_id;
@@ -318,7 +336,7 @@ enum adaptation_field_control_e
 };
 
 void write_bytes( bs_t *s, uint8_t *bytes, int length );
-void write_packet_header( ts_writer_t *w, int start, int pid, int adapt_field, int *cc );
+void write_packet_header( ts_writer_t *w, bs_t *s, int start, int pid, int adapt_field, int *cc );
 void write_registration_descriptor( bs_t *s, int descriptor_tag, int descriptor_length, char *format_id );
 void write_crc( bs_t *s, int start );
 int write_padding( bs_t *s, int start );

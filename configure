@@ -88,7 +88,7 @@ DEVNULL='/dev/null'
 
 debug="no"
 pic="no"
-shared="yes"
+shared="no"
 
 CFLAGS="$CFLAGS -Wall -I."
 LDFLAGS="$LDFLAGS"
@@ -129,8 +129,8 @@ for opt do
         --enable-pic)
             pic="yes"
             ;;
-        --enable-shared)
-            shared="yes"
+        --disable-shared)
+            shared="no"
             ;;
         --host=*)
             host="${opt#--host=}"
